@@ -29,6 +29,7 @@ MasterModbus::~MasterModbus() {
 		modbus_close(ctx);
 		modbus_free(ctx);
 		ctx = NULL;
+		std::cout << "memoria limpa" << std::endl;
 	}
 }
 
