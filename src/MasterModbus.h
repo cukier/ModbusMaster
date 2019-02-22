@@ -10,15 +10,16 @@
 
 #include <modbus/modbus.h>
 #include <list>
+#include <string>
 
 namespace ckr {
 
 class MasterModbus {
 public:
-	MasterModbus();
+	MasterModbus(std::string, int);
 	virtual ~MasterModbus();
 
-	bool connectSlave(int slaveAddress);
+	bool connectSlave();
 	std::list<uint16_t> getRegisters(int startAddress, int size);
 	void close(void);
 	bool isConnected() const;
@@ -26,6 +27,8 @@ public:
 private:
 	modbus_t *ctx = NULL;
 	uint16_t *tab_rp_registers = NULL;
+	std::string m_porta;
+	int m_slave;
 	bool connected = false;
 };
 

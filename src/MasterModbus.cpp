@@ -15,8 +15,9 @@
 
 namespace ckr {
 
-MasterModbus::MasterModbus() {
-	ctx = modbus_new_rtu("/dev/ttyS1", 19200, 'N', 8, 1);
+MasterModbus::MasterModbus(std::string porta, int slave) :
+		m_porta(porta), m_slave(slave) {
+	ctx = modbus_new_rtu(porta.c_str(), 19200, 'N', 8, 1);
 	//	modbus_set_debug(ctx, TRUE);
 	modbus_set_error_recovery(ctx,
 			modbus_error_recovery_mode(
@@ -33,13 +34,13 @@ MasterModbus::~MasterModbus() {
 	}
 }
 
-bool MasterModbus::connectSlave(int slaveAddress) {
+bool MasterModbus::connectSlave() {
 	if (!ctx) {
 		std::cerr << "Mestre inexistente";
 		return false;
 	}
 
-	modbus_set_slave(ctx, 1);
+	modbus_set_slave(ctx, m_slave);
 
 	if (modbus_connect(ctx) == -1) {
 		std::cerr << "Connection failed: " << modbus_strerror(errno);
@@ -53,9 +54,8 @@ bool MasterModbus::connectSlave(int slaveAddress) {
 
 std::list<uint16_t> MasterModbus::getRegisters(int startAddress, int size) {
 	std::list<uint16_t> ret;
-	uint16_t *tab_rp_registers = (uint16_t *) malloc(size * sizeof(uint16_t));
-
-	memset(tab_rp_registers, 0, size * sizeof(uint16_t));
+	uint16_t *tab_rp_registers;
+	int rc = -1;
 
 	if (size == 0) {
 		std::cerr << "Comando nao suportado";
@@ -67,16 +67,42 @@ std::list<uint16_t> MasterModbus::getRegisters(int startAddress, int size) {
 		return ret;
 	}
 
-	memset(tab_rp_registers, 0, size * sizeof(uint16_t));
-	int rc = modbus_read_registers(ctx, startAddress, size, tab_rp_registers);
+	if (size < 125) {
+		tab_rp_registers = (uint16_t *) malloc(size * sizeof(uint16_t));
+		memset(tab_rp_registers, 0, size * sizeof(uint16_t));
+		rc = modbus_read_registers(ctx, startAddress, size, tab_rp_registers);
 
-	if (rc == -1) {
-		std::cerr << "erro ao tentativa de leitura\n";
-		return ret;
-	}
+		if (rc == -1) {
+			std::cerr << "erro ao tentativa de leitura\n";
+			return ret;
+		}
 
-	for (int i = 0; i < size; ++i) {
-		ret.push_back(tab_rp_registers[i]);
+		for (int i = 0; i < size; ++i) {
+			ret.push_back(tab_rp_registers[i]);
+		}
+	} else {
+		tab_rp_registers = (uint16_t *) malloc(125 * sizeof(uint16_t));
+		memset(tab_rp_registers, 0, 125 * sizeof(uint16_t));
+
+		int until = int((float) size / 125);
+
+		for (int c = 0; c <= until; ++c) {
+			int to = 0;
+
+			if (c == until - 1) {
+				to = 125;
+			} else {
+				to = int(size % 125);
+			}
+
+			int sa = (c * 125) + startAddress;
+
+			rc = modbus_read_registers(ctx, sa, to, tab_rp_registers);
+
+			for (int i = 0; i < to; ++i) {
+				ret.push_back(tab_rp_registers[i]);
+			}
+		}
 	}
 
 	free(tab_rp_registers);
